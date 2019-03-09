@@ -1,10 +1,4 @@
-import dq
 
+from ot.utils.list_utils import flatten_list
 
-def run_job():
-    pass
-
-
-if __name__ == '__main__':
-    # pd.set_option('display.max_columns', None)
-    run_job()
+from ot.utils.web_utils import simple_get
