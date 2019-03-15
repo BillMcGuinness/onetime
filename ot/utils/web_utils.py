@@ -14,8 +14,8 @@ def simple_get(url):
     text content, otherwise return None.
     """
     try:
+        log.info('Connecting to {}'.format(url))
         with closing(get(url, stream=True)) as resp:
-            log.info('Connecting to {}'.format(url))
             if is_good_response(resp):
                 log.info('Good response for url: {}'.format(url))
                 return resp.content
