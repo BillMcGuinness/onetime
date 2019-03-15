@@ -1,8 +1,10 @@
 from requests import get
 from requests.exceptions import RequestException
 from contextlib import closing
-
+from logging import getLogger
 from pprint import pprint
+
+log = getLogger()
 
 
 def simple_get(url):
@@ -13,9 +15,12 @@ def simple_get(url):
     """
     try:
         with closing(get(url, stream=True)) as resp:
+            log.info('Connecting to {}'.format(url))
             if is_good_response(resp):
+                log.info('Good response for url: {}'.format(url))
                 return resp.content
             else:
+                log.info('Bad response: {}'.format(resp))
                 return None
 
     except RequestException as e:

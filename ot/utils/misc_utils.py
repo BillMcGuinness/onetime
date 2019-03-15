@@ -1,5 +1,5 @@
 import hashlib
-
+from pandas import isnull
 
 def hash_object(obj, encoding='latin-1'):
 
@@ -22,3 +22,12 @@ def hash_object(obj, encoding='latin-1'):
     else:
         hashed_bytes = bytes(str(hashed), encoding=encoding)
     return hashlib.md5(hashed_bytes).hexdigest()
+
+def is_empty(val):
+    if val is None:
+        return True
+    elif isnull(val):
+        return True
+    elif val.lower() in ('none', 'nan'):
+        return True
+    return False

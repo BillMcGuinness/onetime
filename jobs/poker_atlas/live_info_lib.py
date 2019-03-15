@@ -1,18 +1,20 @@
 import ot
-
+from logging import getLogger
 from bs4 import BeautifulSoup, element
 from pandas import DataFrame
 
 from pprint import pprint
 
+log = getLogger()
+
 _BASE_URL = 'https://www.pokeratlas.com'
 
 def get_live_cash_game_html(room_url):
-    #raw_url_content = ot.simple_get(room_url)
+    raw_url_content = ot.simple_get(room_url)
     # "mock"
-    with open('C:/users/william.mcguinness/scratch/atlas.html', 'r') as f:
-        raw_url_content = f.read()
-        f.close()
+    # with open('C:/users/william.mcguinness/scratch/atlas.html', 'r') as f:
+    #     raw_url_content = f.read()
+    #     f.close()
 
     url_content = BeautifulSoup(raw_url_content, 'html.parser')
 
@@ -48,7 +50,7 @@ def parse_live_cash_game_html_to_df(cash_html):
         last_update_text = 'Last updated: 1 minute ago'
 
     out_df = DataFrame.from_records(
-        df_data, columns=['game', 'table_count', 'waiting_count']
+        df_data, columns=['game_name', 'table_count', 'waiting_count']
     )
     out_df['update_text'] = last_update_text
 
@@ -57,7 +59,11 @@ def parse_live_cash_game_html_to_df(cash_html):
 
 def get_live_cash_df(url):
     games_html = get_live_cash_game_html(url)
-    out_df = parse_live_cash_game_html_to_df(games_html)
+    if games_html:
+        out_df = parse_live_cash_game_html_to_df(games_html)
+    else:
+        log.warning('Could not parse {}'.format(url))
+        out_df = DataFrame()
     return out_df
 
 def get_room_info_df():
@@ -68,11 +74,15 @@ def get_room_info_df():
     rooms = []
     for section in url_content.select('section'):
         if section.get('class') == ['live-venues-list']:
-            room_list = section.select('ul')
+            room_list = section.find('ul')
             for room_list_element in room_list.select('li'):
-                room_name = room_list_element.select('a').text.strip()
-                url_ext = room_list_element.select('a').get('href')
-                room_location = room_list_element.text.strip()
+                a_element = room_list_element.find('a')
+                room_name = a_element.text.strip()
+                url_ext = a_element.get('href')
+                room_location = room_list_element.text
+                room_location = room_location.replace(room_name, '')
+                room_location = room_location.replace('(', '').replace(')', '')
+                room_location = room_location.strip()
                 rooms.append((room_name, url_ext, room_location))
 
     return DataFrame(
@@ -84,17 +94,90 @@ def room_data_xform(room_info_df):
         room_info_df, df_cols=['room_name'], id_type='room'
     )
 
-    # todo add job information
+    room_info_df = ot.add_job_info(room_info_df, __file__)
 
     return room_info_df
 
 def live_cash_game_xform(df):
-    # todo standardize game names
-    # todo get update time based on current time and update text
-    return df
+    df = ot.add_job_info(df, __file__)
+
+    df['game_name_std'] = df['game_name'].apply(ot.standardize_game_name)
+
+    df = ot.make_id(df, df_cols=['game_name_std'], id_type='game')
+    game_df = df[[
+        'game_id', 'game_name_std', 'game_name', 'job_source',
+        'job_timestamp_system', 'job_timestamp_utc'
+    ]].copy()
+    game_df.drop_duplicates()
+
+    df.drop(['game_name_std', 'game_name'], axis=1, inplace=True)
+
+    df['updated'] = df['update_text'].apply(ot.parse_atlas_update_text)
+
+    df = ot.make_id(
+        df, df_cols=['room_id', 'game_id', 'updated'], id_type='live_game'
+    )
+
+    return df, game_df
+
+def create_tables(db_name):
+    create_room_table(db_name)
+    create_game_table(db_name)
+    create_live_game_table(db_name)
+
+def create_room_table(db_name):
+    with ot.SQLiteHandler(db_name) as sqlh:
+        if not sqlh.table_exists('rooms'):
+            sqlh.create_table(
+                table='rooms',
+                col_type_maps={
+                    'room_id': 'text',
+                    'room_name': 'text',
+                    'room_url_ext': 'text',
+                    'room_location': 'text',
+                    'job_source': 'text',
+                    'job_timestamp_system': 'text',
+                    'job_timestamp_utc': 'text',
+                }
+            )
+
+def create_game_table(db_name):
+    with ot.SQLiteHandler(db_name) as sqlh:
+        if not sqlh.table_exists('games'):
+            sqlh.create_table(
+                table='games',
+                col_type_maps={
+                    'game_id': 'text',
+                    'game_name': 'text',
+                    'game_name_std': 'text',
+                    'job_source': 'text',
+                    'job_timestamp_system': 'text',
+                    'job_timestamp_utc': 'text',
+                }
+            )
+
+def create_live_game_table(db_name):
+    with ot.SQLiteHandler(db_name) as sqlh:
+        if not sqlh.table_exists('live_games'):
+            sqlh.create_table(
+                table='live_games',
+                col_type_maps={
+                    'room_id': 'text',
+                    'game_id': 'text',
+                    'live_game_id': 'text',
+                    'table_count': 'integer',
+                    'waiting_count': 'integer',
+                    'update_text': 'text',
+                    'update_date': 'text',
+                    'job_source': 'text',
+                    'job_timestamp_system': 'text',
+                    'job_timestamp_utc': 'text',
+                }
+            )
 
 if __name__ == '__main__':
-    url = 'https://www.pokeratlas.com/poker-room/prime-social-houston'
-    cash_html = get_live_cash_game_html(url)
-    df = parse_live_cash_game_html_to_df(cash_html)
-    pprint(df)
+    # url = 'https://www.pokeratlas.com/poker-room/prime-social-houston'
+    # cash_html = get_live_cash_game_html(url)
+    # df = parse_live_cash_game_html_to_df(cash_html)
+    # pprint(df)
+    get_room_info_df()
