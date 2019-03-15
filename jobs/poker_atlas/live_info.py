@@ -9,7 +9,7 @@ import pandas as pd
 
 log = getLogger()
 
-_DB_NAME = 'onetime'
+_DB_NAME = 'onetime.db'
 
 def run_job():
     create_tables(db_name=_DB_NAME)

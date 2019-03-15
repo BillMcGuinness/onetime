@@ -180,8 +180,11 @@ def create_live_game_table(db_name):
             )
 
 if __name__ == '__main__':
-    url = 'https://www.pokeratlas.com/poker-room/prime-social-houston/cash' \
-          '-games'
-    cash_html = get_live_cash_game_html(url)
+    # url = 'https://www.pokeratlas.com/poker-room/prime-social-houston/cash' \
+    #       '-games'
+    # cash_html = get_live_cash_game_html(url)
     # df = parse_live_cash_game_html_to_df(cash_html)
     # pprint(df)
+    with ot.SQLiteHandler('onetime') as s:
+        res = s.table_exists('rooms234')
+        print(res)

@@ -57,14 +57,12 @@ class SQLiteHandler(object):
         return bool(res)
 
     def insert_df(self, df, table):
-        print(df)
         conn = self.connect()
         cur = conn.cursor()
 
         query = 'INSERT INTO {} VALUES ('.format(table)
         query += '?, ' * df.shape[1]
         query = query[:-2] + ')'
-        print(query)
 
         vals = df.to_records(index=False).tolist()
         cur.executemany(query, vals)
@@ -93,11 +91,12 @@ class SQLiteHandler(object):
             ][upsert_col].tolist()
 
         if update_ids:
+            update_id_tuples = [tuple(i) for i in update_ids]
             delete_query = """
                 DELETE FROM {table}
                 WHERE {id_col} = ?
             """.format(table=table, id_col=upsert_col)
-            cur.executemany(delete_query, update_ids)
+            cur.executemany(delete_query, update_id_tuples)
             conn.commit()
 
         self.insert_df(df, table)
