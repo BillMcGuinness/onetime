@@ -2,6 +2,7 @@ import ot
 from logging import getLogger
 from bs4 import BeautifulSoup, element
 from pandas import DataFrame
+from numpy import int64
 
 from pprint import pprint
 
@@ -53,6 +54,9 @@ def parse_live_cash_game_html_to_df(cash_html):
         df_data, columns=['game_name', 'table_count', 'waiting_count']
     )
     out_df['update_text'] = last_update_text
+
+    out_df['table_count'] = out_df['table_count'].astype(int64)
+    out_df['waiting_count'] = out_df['waiting_count'].astype(int64)
 
     return out_df
 
@@ -176,8 +180,8 @@ def create_live_game_table(db_name):
             )
 
 if __name__ == '__main__':
-    # url = 'https://www.pokeratlas.com/poker-room/prime-social-houston'
-    # cash_html = get_live_cash_game_html(url)
+    url = 'https://www.pokeratlas.com/poker-room/prime-social-houston/cash' \
+          '-games'
+    cash_html = get_live_cash_game_html(url)
     # df = parse_live_cash_game_html_to_df(cash_html)
     # pprint(df)
-    get_room_info_df()
