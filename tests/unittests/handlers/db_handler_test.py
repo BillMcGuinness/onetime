@@ -139,12 +139,12 @@ class SQLiteHandlerTest(unittest.TestCase):
 
         upsert_col= 'id'
         mock_df = DataFrame(data={
-            upsert_col: ['1','2']
+            upsert_col: ['1xx', '2xx', '4xx']
         })
         self.MockReadSql.return_value = mock_df
 
         upsert_df = DataFrame(data={
-            upsert_col: ['1','3']
+            upsert_col: ['1xx', '3xx', '4xx']
         })
 
         with db_handler.SQLiteHandler('TEST') as s:
@@ -161,5 +161,5 @@ class SQLiteHandlerTest(unittest.TestCase):
                 """
                 DELETE FROM test_table
                 WHERE id = ?
-            """, [('1',)]
+            """, [('1xx',), ('4xx',)]
             )

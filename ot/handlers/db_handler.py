@@ -93,7 +93,7 @@ class SQLiteHandler(object):
             ][upsert_col].tolist()
 
         if update_ids:
-            update_id_tuples = [tuple(i) for i in update_ids]
+            update_id_tuples = [(i,) for i in update_ids]
             delete_query = """
                 DELETE FROM {table}
                 WHERE {id_col} = ?
