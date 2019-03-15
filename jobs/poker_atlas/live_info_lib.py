@@ -1,12 +1,11 @@
 import ot
-from logging import getLogger
 from bs4 import BeautifulSoup, element
 from pandas import DataFrame
 from numpy import int64
 
 from pprint import pprint
 
-log = getLogger()
+log = ot.get_logger()
 
 _BASE_URL = 'https://www.pokeratlas.com'
 
@@ -66,7 +65,7 @@ def get_live_cash_df(url):
     if games_html:
         out_df = parse_live_cash_game_html_to_df(games_html)
     else:
-        log.warning('Could not parse {}'.format(url))
+        log.warning('Could not parse live cash game table for {}'.format(url))
         out_df = DataFrame()
     return out_df
 
@@ -112,7 +111,7 @@ def live_cash_game_xform(df):
         'game_id', 'game_name_std', 'game_name', 'job_source',
         'job_timestamp_system', 'job_timestamp_utc'
     ]].copy()
-    game_df.drop_duplicates()
+    game_df.drop_duplicates(subset='game_id', inplace=True)
 
     df.drop(['game_name_std', 'game_name'], axis=1, inplace=True)
 
@@ -125,6 +124,7 @@ def live_cash_game_xform(df):
     return df, game_df
 
 def create_tables(db_name):
+    log.info('Setting up tables')
     create_room_table(db_name)
     create_game_table(db_name)
     create_live_game_table(db_name)
@@ -132,6 +132,7 @@ def create_tables(db_name):
 def create_room_table(db_name):
     with ot.SQLiteHandler(db_name) as sqlh:
         if not sqlh.table_exists('rooms'):
+            log.info("rooms table doesn't exist, creating rooms table")
             sqlh.create_table(
                 table='rooms',
                 col_type_maps={
@@ -144,10 +145,13 @@ def create_room_table(db_name):
                     'job_timestamp_utc': 'text',
                 }
             )
+        else:
+            log.info('rooms table already exists, skipping table creation')
 
 def create_game_table(db_name):
     with ot.SQLiteHandler(db_name) as sqlh:
         if not sqlh.table_exists('games'):
+            log.info("games table doesn't exist, creating rooms table")
             sqlh.create_table(
                 table='games',
                 col_type_maps={
@@ -159,10 +163,13 @@ def create_game_table(db_name):
                     'job_timestamp_utc': 'text',
                 }
             )
+        else:
+            log.info('games table already exists, skipping table creation')
 
 def create_live_game_table(db_name):
     with ot.SQLiteHandler(db_name) as sqlh:
         if not sqlh.table_exists('live_games'):
+            log.info("live_games table doesn't exist, creating rooms table")
             sqlh.create_table(
                 table='live_games',
                 col_type_maps={
@@ -172,12 +179,14 @@ def create_live_game_table(db_name):
                     'table_count': 'integer',
                     'waiting_count': 'integer',
                     'update_text': 'text',
-                    'update_date': 'text',
+                    'updated': 'text',
                     'job_source': 'text',
                     'job_timestamp_system': 'text',
                     'job_timestamp_utc': 'text',
                 }
             )
+        else:
+            log.info('live_games table already exists, skipping table creation')
 
 if __name__ == '__main__':
     # url = 'https://www.pokeratlas.com/poker-room/prime-social-houston/cash' \

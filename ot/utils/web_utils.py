@@ -1,10 +1,10 @@
 from requests import get
 from requests.exceptions import RequestException
 from contextlib import closing
-from logging import getLogger
+from ot.logging import get_logger
 from pprint import pprint
 
-log = getLogger()
+log = get_logger()
 
 
 def simple_get(url):

@@ -54,7 +54,8 @@ class PokerUtilsTest(unittest.TestCase):
             ('$2-5 NL Holdem', '2-5 NL Holdem'),
             ('3-6 Limit Holdem', '3-6 Limit Holdem'),
             ('1-2 N/L Holdem', '1-2 N/L Holdem'),
-            ('$15-30 8OB', '15-30 8OB')
+            ('$15-30 8OB', '15-30 8OB'),
+            ('$1/2/5 PLO', '1-2-5 PLO')
         ]:
             got_stakes = poker_utils.standardize_stakes(raw_stakes)
             self.assertEqual(exp_stakes, got_stakes)

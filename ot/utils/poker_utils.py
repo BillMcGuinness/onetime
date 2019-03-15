@@ -1,11 +1,11 @@
 from ot.utils.misc_utils import is_empty
+from ot.logging import get_logger
 from pathlib import Path
 import pandas as pd
 import datetime
-import logging
 import re
 
-log = logging.getLogger()
+log = get_logger()
 
 def standardize_game_name(game_name):
     game_name = game_name.upper()
@@ -16,7 +16,8 @@ def standardize_game_name(game_name):
 def standardize_stakes(game_name):
 
     game_name = game_name.replace('$', '')
-    game_name = re.sub('(\d)\/(\d)', r'\1-\2', game_name)
+    #game_name = re.sub('(\d)\/(\d)', r'\1-\2', game_name)
+    game_name = re.sub('(\d)\/(?=\d)', r'\1-', game_name)
     #game_name = game_name.replace('/', '-')
     return game_name
 

@@ -48,7 +48,7 @@ class SQLiteHandlerTest(unittest.TestCase):
             s.insert_df(ins_df, 'test_table')
 
             mock_cursor.executemany.assert_called_once_with(
-                'INSERT INTO test_table VALUES (?, ?)',
+                'INSERT INTO test_table (col1, col2) VALUES (?, ?)',
                 [('abc', '123'), ('def', '456'), ('xyz', '789')]
             )
 

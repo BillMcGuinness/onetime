@@ -60,7 +60,9 @@ class SQLiteHandler(object):
         conn = self.connect()
         cur = conn.cursor()
 
-        query = 'INSERT INTO {} VALUES ('.format(table)
+        query = 'INSERT INTO {} ('.format(table)
+        query += ', '.join(list(df.columns))
+        query += ') VALUES ('
         query += '?, ' * df.shape[1]
         query = query[:-2] + ')'
 
@@ -100,6 +102,11 @@ class SQLiteHandler(object):
             conn.commit()
 
         self.insert_df(df, table)
+
+    def sql_to_df(self, query):
+        conn = self.connect()
+        out_df = pd.read_sql(query, conn)
+        return out_df
 
 
 if __name__ == '__main__':
