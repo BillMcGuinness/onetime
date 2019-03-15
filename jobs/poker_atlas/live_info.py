@@ -33,9 +33,9 @@ def run_job():
         live_cash_df = get_live_cash_df(cash_game_url)
         if not live_cash_df.empty:
             live_cash_df['room_id'] = row['room_id']
-        all_live_cash_df = pd.concat(
-            [all_live_cash_df, live_cash_df], ignore_index=True
-        )
+            all_live_cash_df = pd.concat(
+                [all_live_cash_df, live_cash_df], ignore_index=True
+            )
 
     all_live_cash_df, game_df = live_cash_game_xform(all_live_cash_df)
 
