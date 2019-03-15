@@ -275,7 +275,7 @@ class LiveInfoTest(unittest.TestCase):
         got_df = live_info_lib.parse_live_cash_game_html_to_df(inp_html)
 
         exp_df = DataFrame(data={
-            'game_name': [
+            'game_name_raw': [
                 '$1-2 NLH', '$1-3 NLH', '$5-5 NLH', '$25-25-50 NLH',
                 '$20-40 LHE', '$1-3 PLO', '$5-5 PLO', '$10-25 PLO',
                 '$15-30 8OB', '$25-25-50 PLO', '$10-20 Mix', 'ULT DOM'

@@ -3,9 +3,12 @@ import pandas as pd
 
 def run_job():
     with ot.SQLiteHandler('onetime.db') as s:
+        s.export_db_to_excel(
+            'C:/users/william.mcguinness/scratch/onetime_db.xlsx'
+        )
         df = s.sql_to_df(
             query="""
-                SELECT r.room_name, r.room_location, g.game_name_std,
+                SELECT r.room_name, r.room_location, g.game_name,
                     lg.table_count, lg.waiting_count, lg.updated
                 FROM live_games lg
                     LEFT JOIN rooms r

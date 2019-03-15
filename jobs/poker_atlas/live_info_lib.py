@@ -50,7 +50,7 @@ def parse_live_cash_game_html_to_df(cash_html):
         last_update_text = 'Last updated: 1 minute ago'
 
     out_df = DataFrame.from_records(
-        df_data, columns=['game_name', 'table_count', 'waiting_count']
+        df_data, columns=['game_name_raw', 'table_count', 'waiting_count']
     )
     out_df['update_text'] = last_update_text
 
@@ -104,16 +104,16 @@ def room_data_xform(room_info_df):
 def live_cash_game_xform(df):
     df = ot.add_job_info(df, __file__)
 
-    df['game_name_std'] = df['game_name'].apply(ot.standardize_game_name)
+    df['game_name'] = df['game_name_raw'].apply(ot.standardize_game_name)
 
-    df = ot.make_id(df, df_cols=['game_name_std'], id_type='game')
+    df = ot.make_id(df, df_cols=['game_name'], id_type='game')
     game_df = df[[
-        'game_id', 'game_name_std', 'game_name', 'job_source',
+        'game_id', 'game_name_raw', 'game_name', 'job_source',
         'job_timestamp_system', 'job_timestamp_utc'
     ]].copy()
     game_df.drop_duplicates(subset='game_id', inplace=True)
 
-    df.drop(['game_name_std', 'game_name'], axis=1, inplace=True)
+    df.drop(['game_name_raw', 'game_name'], axis=1, inplace=True)
 
     df['updated'] = df['update_text'].apply(ot.parse_atlas_update_text)
 
@@ -157,7 +157,7 @@ def create_game_table(db_name):
                 col_type_maps={
                     'game_id': 'text',
                     'game_name': 'text',
-                    'game_name_std': 'text',
+                    'game_name_raw': 'text',
                     'job_source': 'text',
                     'job_timestamp_system': 'text',
                     'job_timestamp_utc': 'text',
