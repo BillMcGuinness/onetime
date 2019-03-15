@@ -16,3 +16,5 @@ from ot.handlers.db_handler import SQLiteHandler
 from ot.utils.misc_utils import is_empty
 
 from ot.logging import get_logger
+
+from ot.utils.df_utils import df_to_xl
