@@ -13,7 +13,9 @@ from ot.xforms.df_xforms import (
 
 from ot.handlers.db_handler import SQLiteHandler
 
-from ot.utils.misc_utils import is_empty
+from ot.utils.misc_utils import (
+    is_empty, hash_object
+)
 
 from ot.logging import get_logger
 
