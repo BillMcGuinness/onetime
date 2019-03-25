@@ -21,66 +21,66 @@ def group_by_room(df):
 
 def run_job():
     with ot.SQLiteHandler('onetime.db') as s:
-        # s.export_db_to_excel(
-        #     'C:/users/william.mcguinness/scratch/onetime_db.xlsx'
-        # )
-        df_room_total = s.sql_to_df(
+        s.export_db_to_excel(
+            'C:/users/william.mcguinness/scratch/onetime_db.xlsx'
+        )
+        room_data = s.sql_to_df(
             query="""
-            /*SELECT t.room, t.updated, SUM(t.member_count) as 'member_count'
-            FROM (*/
-                SELECT r.room_name || ' (' || r.room_location || ')' as 'room',  
-                    time(lg.updated) as 'updated',
-                    SUM(CASE
-                        WHEN lg.waiting_count > 0
-                            THEN (9*lg.table_count) + lg.waiting_count
-                        ELSE
-                            5*lg.table_count
-                        END) AS 'member_count'
-                FROM live_games lg
-                    LEFT JOIN rooms r
-                        ON lg.room_id = r.room_id
-                    LEFT JOIN games g
-                        ON lg.game_id = g.game_id
-                GROUP BY r.room_name || ' (' || r.room_location || ')',
-                    --g.game_name, 
-                    time(lg.updated)
-                /*) t
-                GROUP BY t.room, t.updated */          
+            SELECT r.room_name || ' (' || r.room_location || ')' as 'room',
+                DATETIME(lg.updated) as 'updated',
+                SUM(CASE
+                    WHEN lg.waiting_count > 0
+                        THEN ((9*lg.table_count) + (.75*lg.waiting_count))
+                    WHEN lg.table_count > 0
+                        THEN ((9*(lg.table_count-1)) + 5)
+                    ELSE 0
+                    END) AS 'member_count',
+                SUM(lg.table_count) as 'total_table_count'
+            FROM live_games lg
+                LEFT JOIN rooms r
+                    ON lg.room_id = r.room_id
+                LEFT JOIN games g
+                    ON lg.game_id = g.game_id
+            GROUP BY r.room_name || ' (' || r.room_location || ')',
+                DATETIME(lg.updated)
             """
         )
-        df_rooms_games_total = s.sql_to_df(
+        room_game_data = s.sql_to_df(
             query="""
             SELECT r.room_name || ' (' || r.room_location || ')' as 'room',
                 g.game_name,  
-                    time(lg.updated) as 'updated',
-                    SUM(CASE
-                        WHEN lg.waiting_count > 0
-                            THEN (9*lg.table_count) + lg.waiting_count
-                        ELSE
-                            5*lg.table_count
-                        END) AS 'member_count'
+                DATETIME(lg.updated) as 'updated',
+                CASE
+                    WHEN lg.waiting_count > 0
+                        THEN ((9*lg.table_count) + (.75*lg.waiting_count))
+                    WHEN lg.table_count > 0
+                        THEN ((9*(lg.table_count-1)) + 5)
+                    ELSE 0
+                    END AS 'member_count',
+                lg.table_count
                 FROM live_games lg
                     LEFT JOIN rooms r
                         ON lg.room_id = r.room_id
                     LEFT JOIN games g
-                        ON lg.game_id = g.game_id
-                GROUP BY r.room_name || ' (' || r.room_location || ')',
-                    g.game_name, 
-                    time(lg.updated)         
+                        ON lg.game_id = g.game_id     
             """
         )
-
     #df = df.apply(infer_member_count_per_game, axis=1)
 
     #df = group_by_room(df)
 
     ot.df_to_xl(
-        {'room_summary': df_room_total, 'room_game_summary': df_rooms_games_total},
+        {
+            #'room_summary': df_room_agg,
+            # 'room_game_summary': df_rooms_games_agg,
+            'room_game_data': room_game_data,
+            'room_data': room_data
+        },
         'C:/users/william.mcguinness/scratch/live_games.xlsx'
     )
 
 
 
 if __name__ == '__main__':
-    # pd.set_option('display.max_columns', None)
+    pd.set_option('display.max_columns', None)
     run_job()

@@ -2,7 +2,7 @@ import ot
 import time
 import random
 import optparse
-from jobs.poker_atlas.live_info_lib import (
+from jobs.poker_atlas.live_info_lib_new import (
     get_room_info_df, room_data_xform, _BASE_URL, get_live_cash_df,
     live_cash_game_xform, create_tables
 )
@@ -14,18 +14,19 @@ import os
 _LOG_LOCATION = 'C:/users/william.mcguinness/scratch/atlas_log/live_info_log.txt'
 _ERROR_LOCATION = 'C:/users/william.mcguinness/scratch/atlas_log/ERROR_live_info_log.txt'
 
-err_log = ot.get_error_file_logger(_ERROR_LOCATION)
+#err_log = ot.get_error_file_logger(_ERROR_LOCATION)
 log = ot.get_logger()
 
-_DB_NAME = 'onetime.db'
+_DB_NAME = 'onetime_new.db'
 
 def run_job():
     # raise Exception('test_exception')
     create_tables(db_name=_DB_NAME)
 
-    start_wait = random.random()*60 + 30
-    log.info('Pausing {} seconds before beginning...'.format(int(start_wait)))
-    time.sleep(start_wait)
+
+    # start_wait = random.random()*60 + 30
+    # log.info('Pausing {} seconds before beginning...'.format(int(start_wait)))
+    # time.sleep(start_wait)
 
     room_info_df = get_room_info_df()
     room_info_df = room_data_xform(room_info_df)
@@ -103,5 +104,6 @@ if __name__ == '__main__':
     try:
         run_job()
     except Exception as e:
-        err_log.error(e)
+        #err_log.error(e)
+        log.error()
     cleanup_log(opts.cleanup)

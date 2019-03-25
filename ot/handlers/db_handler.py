@@ -133,6 +133,21 @@ class SQLiteHandler(object):
 
         writer.save()
 
+    def add_columns(self, table, cols_dtype_map):
+        conn = self.connect()
+        cur = conn.cursor()
+
+        for col, dtype in cols_dtype_map.items():
+            query = """
+                ALTER TABLE {table}
+                ADD {col} {dtype};
+            """.format(
+                table=table,
+                col=col,
+                dtype=dtype
+            )
+            cur.execute(query)
+            conn.commit()
 
 if __name__ == '__main__':
     with SQLiteHandler(db_name='test.db') as h:

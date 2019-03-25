@@ -163,3 +163,39 @@ class SQLiteHandlerTest(unittest.TestCase):
                 WHERE id = ?
             """, [('1xx',), ('4xx',)]
             )
+
+    def test_add_columns(self):
+        fake_query_results = ['Value1', 'Value2', 'Value3']
+
+        mock_cursor = MagicMock()
+        mock_cursor.execute.return_value = fake_query_results
+        mock_cursor.executemany.return_value = fake_query_results
+        mock_cursor.close.return_value = True
+
+        mock_conn = MagicMock()
+        mock_conn.close.return_value = True
+        mock_conn.cursor.return_value = mock_cursor
+        mock_conn.commit.return_value = True
+
+        self.MockSQLiteConnect.return_value = mock_conn
+
+        with db_handler.SQLiteHandler('TEST') as s:
+            s.add_columns(
+                table='test_tbl', cols_dtype_map=OrderedDict([
+                    ('col1', 'text'),
+                    ('col2', 'integer')
+                ])
+            )
+            # print(mock_cursor.mock_calls)
+            mock_cursor.execute.assert_any_call(
+                """
+                ALTER TABLE test_tbl
+                ADD col1 text;
+            """
+            )
+            mock_cursor.execute.assert_any_call(
+                """
+                ALTER TABLE test_tbl
+                ADD col2 integer;
+            """
+            )

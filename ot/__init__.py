@@ -17,6 +17,8 @@ from ot.utils.misc_utils import (
     is_empty, hash_object
 )
 
-from ot.logging import get_logger
+from ot.logging import (
+    get_logger, get_error_file_logger
+)
 
 from ot.utils.df_utils import df_to_xl
