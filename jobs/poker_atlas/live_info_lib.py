@@ -1,6 +1,6 @@
 import ot
 from bs4 import BeautifulSoup, element
-from pandas import DataFrame, set_option
+from pandas import DataFrame, set_option, concat, merge
 from numpy import int64
 
 from pprint import pprint
@@ -18,13 +18,22 @@ def get_live_cash_game_html(room_url):
 
     url_content = BeautifulSoup(raw_url_content, 'html.parser')
 
+    out = {}
+
     for tbl_html in url_content.select('table'):
         if tbl_html.get('class') == ['live-info']:
             row_classes = [i.get('class') for i in tbl_html.select('tr')]
             if 'live-cash-game' in ot.flatten_list(row_classes):
-                return tbl_html
+                out['live_games'] = tbl_html
 
-    return None
+    out['live_waitlists'] = url_content.findAll(
+        'div', {'class': 'modal-overlay square-corners'}
+    )
+
+    if 'live_games' not in out:
+        out['live_games'] = None
+
+    return out
 
 def parse_live_cash_game_html_to_df(cash_html):
     assert isinstance(cash_html, element.Tag)
@@ -38,6 +47,12 @@ def parse_live_cash_game_html_to_df(cash_html):
                 for cell in row.select('td'):
                     if cell.text.strip():
                         row_data.append(cell.text.strip())
+                    else:
+                        cell_div = cell.find('div')
+                        if cell_div:
+                            row_data.append(cell_div.get('data-modal'))
+                        else:
+                            row_data.append(None)
                 df_data.append(tuple(row_data))
         else:
             for non_live_game_cell in row.select('td'):
@@ -50,7 +65,9 @@ def parse_live_cash_game_html_to_df(cash_html):
         last_update_text = 'Last updated: 1 minute ago'
 
     out_df = DataFrame.from_records(
-        df_data, columns=['game_name_raw', 'table_count', 'waiting_count']
+        df_data, columns=[
+            'game_name_raw', 'table_count', 'waiting_count', 'waitlist_modal_id'
+        ]
     )
     out_df['update_text'] = last_update_text
 
@@ -59,15 +76,61 @@ def parse_live_cash_game_html_to_df(cash_html):
 
     return out_df
 
+def parse_live_waitlist_html_to_df(waitlist_htmls):
+    all_waitlist_df_list = []
+    for waitlist_html in waitlist_htmls:
+        this_waitlist_df_records = []
+        if waitlist_html.find('div', {'class': 'live-waitlist'}):
+            waitlist_id = waitlist_html.get('id')
+            for list_item in waitlist_html.find(
+                    'div', {'class': 'waitlist'}
+            ).select('li'):
+                waitlist_index = list_item.find('div', {'class': 'index'}).text
+                waitlist_type = list_item.find(
+                    'div', {'class': 'name'}
+                ).get('class')[1]
+                waitlist_name = list_item.find(
+                    'div', {'class': 'name'}
+                ).text.strip()
+                this_waitlist_df_records.append(
+                    (waitlist_index, waitlist_type, waitlist_name)
+                )
+            if this_waitlist_df_records:
+                this_waitlist_df = DataFrame.from_records(
+                    this_waitlist_df_records, columns=[
+                        'waitlist_index', 'waitlist_type', 'waitlist_name'
+                    ]
+                )
+                this_waitlist_df['waitlist_modal_id'] = waitlist_id
+            else:
+                this_waitlist_df = DataFrame()
+
+            if not this_waitlist_df.empty:
+                all_waitlist_df_list.append(this_waitlist_df)
+
+    if all_waitlist_df_list:
+        out_df = concat(all_waitlist_df_list, ignore_index=True)
+    else:
+        out_df = DataFrame(
+            columns=[
+                'waitlist_index', 'waitlist_type', 'waitlist_name',
+                'waitlist_modal_id'
+            ]
+        )
+    return out_df
 
 def get_live_cash_df(url):
-    games_html = get_live_cash_game_html(url)
+    games_and_waitlist_html = get_live_cash_game_html(url)
+    games_html = games_and_waitlist_html['live_games']
+    waitlist_htmls = games_and_waitlist_html['live_waitlists']
     if games_html:
-        out_df = parse_live_cash_game_html_to_df(games_html)
+        out_games_df = parse_live_cash_game_html_to_df(games_html)
+        out_waitlist_df = parse_live_waitlist_html_to_df(waitlist_htmls)
     else:
         log.warning('Could not parse live cash game table for {}'.format(url))
-        out_df = DataFrame()
-    return out_df
+        out_games_df = DataFrame()
+        out_waitlist_df = DataFrame()
+    return out_games_df, out_waitlist_df
 
 def get_room_info_df():
     url = _BASE_URL + '/poker-rooms/regions/texas'
@@ -283,8 +346,9 @@ def room_data_xform(room_info_df):
 
     return room_info_df
 
-def live_cash_game_xform(df):
+def live_cash_game_xform(df, waitlist_df):
     df = ot.add_job_info(df, __file__)
+    waitlist_df = ot.add_job_info(waitlist_df, __file__)
 
     df['game_name'] = df['game_name_raw'].apply(ot.standardize_game_name)
 
@@ -303,13 +367,28 @@ def live_cash_game_xform(df):
         df, df_cols=['room_id', 'game_id', 'updated'], id_type='live_game'
     )
 
-    return df, game_df
+    waitlist_df = merge(
+        waitlist_df, df[['live_game_id', 'waitlist_modal_id', 'room_id']],
+        how='left',
+        on=['waitlist_modal_id', 'room_id']
+    )
+
+    waitlist_df = ot.make_id(
+        waitlist_df, df_cols=[
+            'live_game_id',  'waitlist_index', 'waitlist_type', 'waitlist_name'
+        ], id_type='waitlist_spot'
+    )
+
+    del df['waitlist_modal_id']
+
+    return df, game_df, waitlist_df
 
 def create_tables(db_name):
     log.info('Setting up tables')
     create_room_table(db_name)
     create_game_table(db_name)
     create_live_game_table(db_name)
+    create_live_waitlist_table(db_name)
 
 def create_room_table(db_name):
     with ot.SQLiteHandler(db_name) as sqlh:
@@ -397,7 +476,33 @@ def create_live_game_table(db_name):
         else:
             log.info('live_games table already exists, skipping table creation')
 
+def create_live_waitlist_table(db_name):
+    with ot.SQLiteHandler(db_name) as sqlh:
+        if not sqlh.table_exists('live_waitlists'):
+            log.info("live_waitlist table doesn't exist, creating rooms table")
+            sqlh.create_table(
+                table='live_waitlists',
+                col_type_maps={
+                    'waitlist_spot_id': 'text',
+                    'live_game_id': 'text',
+                    'room_id': 'text',
+                    'waitlist_modal_id': 'text',
+                    'waitlist_index': 'integer',
+                    'waitlist_type': 'text',
+                    'waitlist_name': 'text',
+                    'job_source': 'text',
+                    'job_timestamp_system': 'text',
+                    'job_timestamp_utc': 'text',
+                }
+            )
+        else:
+            log.info('live_waitlists table already exists, skipping table '
+                     'creation')
+
 if __name__ == '__main__':
     set_option('display.max_columns', None)
-    room_df = get_room_info_df()
-    print(room_df)
+    games_df, waitlist_df = get_live_cash_df(
+        'https://www.pokeratlas.com/poker-room/prime-social-houston/cash-games'
+    )
+    print(games_df)
+    print(waitlist_df)

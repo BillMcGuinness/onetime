@@ -33,6 +33,7 @@ def run_job():
         s.upsert_df(df=room_info_df, table='rooms', upsert_col='room_id')
 
     all_live_cash_df = pd.DataFrame()
+    all_live_waitlist_df = pd.DataFrame()
     for idx, row in room_info_df.iterrows():
         log.info('Finding live cash games for {}'.format(row['room_name']))
         time_to_wait = random.random()*5 + 3
@@ -42,19 +43,30 @@ def run_job():
         time.sleep(time_to_wait)
         room_url_ext = row['room_url_ext']
         cash_game_url = _BASE_URL + room_url_ext + '/cash-games'
-        live_cash_df = get_live_cash_df(cash_game_url)
+        live_cash_df, live_waitlist_df = get_live_cash_df(cash_game_url)
         if not live_cash_df.empty:
             live_cash_df['room_id'] = row['room_id']
             all_live_cash_df = pd.concat(
                 [all_live_cash_df, live_cash_df], ignore_index=True
             )
+            # needed because waitlist modal IDs are reused across rooms
+            live_waitlist_df['room_id'] = row['room_id']
+            all_live_waitlist_df = pd.concat(
+                [all_live_waitlist_df, live_waitlist_df], ignore_index=True
+            )
 
-    all_live_cash_df, game_df = live_cash_game_xform(all_live_cash_df)
+    all_live_cash_df, game_df, all_live_waitlist_df = live_cash_game_xform(
+        all_live_cash_df, all_live_waitlist_df
+    )
 
     with ot.SQLiteHandler(_DB_NAME) as s:
         s.upsert_df(df=game_df, table='games', upsert_col='game_id')
         s.upsert_df(
             df=all_live_cash_df, table='live_games', upsert_col='live_game_id'
+        )
+        s.upsert_df(
+            df=all_live_waitlist_df, table='live_waitlists',
+            upsert_col='waitlist_spot_id'
         )
 
 def process_command_line():
