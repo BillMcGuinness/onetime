@@ -50,4 +50,4 @@ def run_job():
 
 if __name__ == '__main__':
     pd.set_option('display.max_columns', None)
-    run_job()
+    # run_job()

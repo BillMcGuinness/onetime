@@ -24,6 +24,7 @@ class PokerUtilsTest(unittest.TestCase):
             ('Last updated: 1 minute ago', '2019-03-13 08:59:00'),
             ('Last updated: 39 minutes ago', '2019-03-13 08:21:00'),
             ('Last updated: 1 day ago', '2019-03-12 09:00:00'),
+            ('Last updated: 3 minutes ago', '2019-03-13 08:57:00')
 
         ]:
             got_text = poker_utils.parse_atlas_update_text(update_text)

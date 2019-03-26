@@ -1,24 +1,6 @@
 import ot
 import pandas as pd
 
-def infer_member_count_per_game(row):
-    if row['waiting_count'] > 0:
-        row['member_count'] = (row['table_count'] * 9) + row['waiting_count']
-    else:
-        # todo use past data to infer players at each table
-        # for now, assume 5 players each
-        row['member_count'] = row['table_count'] * 5
-    return row
-
-def group_by_room(df):
-
-    # out_df = pd.DataFrame(pd.to_datetime(df['updated']))
-    # out_df = out_df.groupby()
-    df['updated'] = pd.to_datetime(df['updated'])
-    room_group = df.groupby(['room_name', ])
-
-    #def _
-
 def run_job():
     with ot.SQLiteHandler('onetime.db') as s:
         s.export_db_to_excel(
@@ -65,9 +47,6 @@ def run_job():
                         ON lg.game_id = g.game_id     
             """
         )
-    #df = df.apply(infer_member_count_per_game, axis=1)
-
-    #df = group_by_room(df)
 
     ot.df_to_xl(
         {
@@ -79,8 +58,13 @@ def run_job():
         'C:/users/william.mcguinness/scratch/live_games.xlsx'
     )
 
-
+def run_job_new():
+    with ot.SQLiteHandler('onetime_new.db') as s:
+        s.export_db_to_excel(
+            'C:/users/william.mcguinness/scratch/onetime_new_db.xlsx'
+        )
 
 if __name__ == '__main__':
     pd.set_option('display.max_columns', None)
-    run_job()
+    # run_job()
+    run_job_new()
