@@ -8,7 +8,7 @@ from ot.utils.poker_utils import (
 )
 
 from ot.xforms.df_xforms import (
-    make_id, add_job_info
+    make_id, add_job_info, parse_df_atlas_update_text
 )
 
 from ot.handlers.db_handler import SQLiteHandler

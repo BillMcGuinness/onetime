@@ -3,6 +3,7 @@ from ot.logging import get_logger
 from pathlib import Path
 import pandas as pd
 import datetime
+from dateutil.parser import parse
 import re
 
 log = get_logger()
@@ -42,8 +43,11 @@ def standardize_variant(game_name):
     #print('final game name: {}'.format(game_name))
     return game_name
 
-def parse_atlas_update_text(update_text):
-    now_time = datetime.datetime.now()
+def parse_atlas_update_text(update_text, now_time_str=None):
+    if now_time_str:
+        now_time = parse(now_time_str)
+    else:
+        now_time = datetime.datetime.now()
 
     update_text_raw = update_text
 
@@ -53,7 +57,7 @@ def parse_atlas_update_text(update_text):
 
     if 'minute' in update_text:
         if update_text == 'less than a minute ago':
-            return now_time
+            game_update_time = now_time
         else:
             update_text = update_text.replace('minutes ago', '').strip()
             update_text = update_text.replace('minute ago', '').strip()
