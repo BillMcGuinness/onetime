@@ -40,7 +40,8 @@ class PokerUtilsTest(unittest.TestCase):
             ('$2-5 NL Holdem', '$2-5 NLH'),
             ('3-6 Limit Holdem', '3-6 LHE'),
             ('1-2 N/L Holdem', '1-2 NLH'),
-            ('$15-30 8OB', '$15-30 8OB')
+            ('$15-30 8OB', '$15-30 8OB'),
+            ('$20 No Limit Holdem', '$20 NLH')
         ]:
             got_variant = poker_utils.standardize_variant(raw_variant)
             self.assertEqual(exp_variant, got_variant)
@@ -71,7 +72,8 @@ class PokerUtilsTest(unittest.TestCase):
             ('$2-5 NL Holdem', '2-5 NLH'),
             ('3-6 Limit Holdem', '3-6 LHE'),
             ('1-2 N/L Holdem', '1-2 NLH'),
-            ('$15-30 8OB', '15-30 8OB')
+            ('$15-30 8OB', '15-30 8OB'),
+            ('$20 No Limit Holdem', '20 NLH')
         ]:
             got_variant = poker_utils.standardize_game_name(raw_variant)
             self.assertEqual(exp_variant, got_variant)

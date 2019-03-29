@@ -2,6 +2,7 @@ import ot
 from bs4 import BeautifulSoup, element
 from pandas import DataFrame, set_option, concat, merge
 from numpy import int64
+import dateutil.parser as dup
 
 from pprint import pprint
 
@@ -337,6 +338,378 @@ def get_room_info_df():
         ]
     )
 
+def get_this_tournament_dfs(main_tournament_html, room_id):
+    this_tournament_df = parse_tournament_df(main_tournament_html)
+    this_structure_df = parse_structure_df(main_tournament_html)
+    this_payout_df = parse_payout_df(main_tournament_html)
+
+    structure_id = ot.hash_object(this_structure_df)
+    this_structure_df['tournament_structure_id'] = structure_id
+    this_tournament_df['tournament_structure_id'] = structure_id
+
+    this_tournament_df['room_id'] = room_id
+    this_tournament_df = ot.make_id(
+        this_tournament_df, df_cols=['room_id', 'name', 'start_datetime'],
+        id_type='tournament'
+    )
+    this_tournament_id = this_tournament_df['tournament_id'][0]
+
+    this_payout_df['tournament_id'] = this_tournament_id
+
+    return this_tournament_df, this_structure_df, this_payout_df
+
+def get_tournament_dfs(url, room_id):
+    all_tournament_df = DataFrame()
+    all_structure_df = DataFrame()
+    all_payout_df = DataFrame()
+
+    raw_tournament_landing_html = ot.simple_get(url)
+    tournament_landing_html = BeautifulSoup(
+        raw_tournament_landing_html, 'html.parser'
+    )
+
+    live_tournaments_htmls = tournament_landing_html.findAll(
+        'tr', {'class': 'live-tournament'}
+    )
+
+    if live_tournaments_htmls:
+        for live_tournament_html in live_tournaments_htmls:
+            main_tournament_html = get_main_tournament_html(
+                live_tournament_html
+            )
+            this_tournament_df, this_structure_df, this_payout_df = \
+                get_this_tournament_dfs(main_tournament_html, room_id)
+
+            all_tournament_df = concat(
+                [all_tournament_df, this_tournament_df], ignore_index=True
+            )
+            all_structure_df = concat(
+                [all_structure_df, this_structure_df], ignore_index=True
+            )
+            all_payout_df = concat(
+                [all_payout_df, this_payout_df], ignore_index=True
+            )
+
+    upcoming_tournaments_html = tournament_landing_html.find(
+        'section', {'class': 'upcoming-tournaments'}
+    )
+
+    if upcoming_tournaments_html:
+        for upcoming_tournament_html in upcoming_tournaments_html.select('li'):
+            main_tournament_html = get_main_tournament_html(
+                upcoming_tournament_html
+            )
+            this_tournament_df, this_structure_df, this_payout_df = \
+                get_this_tournament_dfs(main_tournament_html, room_id)
+
+            all_tournament_df = concat(
+                [all_tournament_df, this_tournament_df], ignore_index=True
+            )
+            all_structure_df = concat(
+                [all_structure_df, this_structure_df], ignore_index=True
+            )
+            all_payout_df = concat(
+                [all_payout_df, this_payout_df], ignore_index=True
+            )
+
+    return all_tournament_df, all_structure_df, all_payout_df
+
+def parse_tournament_df(html):
+    name = html.find('div', {'class':'meta'}).find('h1').text.strip()
+
+    start_date_raw = html.find(
+        'div', {'class':'meta'}
+    ).find('div', {'class':'date'}).text.strip()
+    start_time_raw = html.find(
+        'div', {'class':'meta'}
+    ).find('div', {'class':'time'}).find('span').text.strip()
+    start_datetime = str(dup.parse(start_date_raw + ' ' + start_time_raw))
+
+    tournament_game_name_raw = html.find(
+        'div', {'class':'game'}
+    ).find('span').text.strip()
+
+    reg_details_labels = html.find(
+        'div', {'class': 'registration-details'}
+    ).findAll('dt')
+    reg_details = html.find(
+        'div', {'class': 'registration-details'}
+    ).findAll('dd')
+    reg_open_datetime = None
+    reg_close_datetime = None
+    reg_comments = None
+    for reg_label, reg_detail in zip(
+        reg_details_labels, reg_details
+    ):
+        label_text = reg_label.text.lower()
+        detail_text = reg_detail.text.strip()
+        if 'registration open' in label_text:
+            reg_open_time_raw = detail_text
+            reg_open_datetime = str(dup.parse(
+                start_date_raw + ' ' + reg_open_time_raw
+            ))
+        elif 'registration close' in label_text:
+            reg_close_time_raw = detail_text
+            reg_close_datetime = str(dup.parse(
+                start_date_raw + ' ' + reg_close_time_raw
+            ))
+        elif not label_text:
+            reg_comments = detail_text
+
+    buy_in_details_labels = html.find(
+        'div', {'class':'buy-in-details'}
+    ).findAll('dt')
+    buy_in_details = html.find('div', {'class':'buy-in-details'}).findAll('dd')
+    total_buy_in = None
+    entry_fee = None
+    deductions = None
+    for buy_in_label, buy_in_detail in zip(
+        buy_in_details_labels, buy_in_details
+    ):
+        buy_in_detail_clean = buy_in_detail.text.replace('$','').replace(
+            ',', ''
+        ).strip()
+        if 'buy-in' in buy_in_label.text.lower():
+            total_buy_in = buy_in_detail_clean
+        elif 'entry' in buy_in_label.text.lower():
+            entry_fee = buy_in_detail_clean
+        elif 'deduction' in buy_in_label.text.lower():
+            deductions = buy_in_detail_clean
+
+    format_details_labels = html.find(
+        'div', {'class':'format-details'}
+    ).findAll('dt')
+    format_details = html.find('div', {'class':'format-details'}).findAll('dd')
+    starting_chips = None
+    starting_blinds = None
+    starting_small_blind = None
+    starting_big_blind = None
+    ante_type = None
+    staff_bonus = None
+    staff_bonus_chips = None
+    reentry = None
+    rebuys = None
+    rebuy_cost = None
+    rebuy_chips = None
+    addons = None
+    addon_cost = None
+    addon_chips = None
+    bounties = None
+    for format_label, format_detail in zip(
+        format_details_labels, format_details
+    ):
+        label_text = format_label.text.lower()
+        detail_text = format_detail.text.strip()
+        if 'starting chips' in label_text:
+            starting_chips = detail_text.replace(',', '').strip()
+        elif 'starting blind' in label_text:
+            starting_blinds = detail_text
+            starting_small_blind = detail_text.split('/')[0]
+            starting_big_blind = detail_text.split('/')[1]
+        elif 'ante type' in label_text:
+            ante_type = detail_text
+        elif 'staff bonus' in label_text and 'chips' not in label_text:
+            staff_bonus = detail_text.replace('$', '').replace(',', '').strip()
+        elif 'staff bonus chip' in label_text:
+            staff_bonus_chips = detail_text.replace(',', '').strip()
+        elif 're-entry' in label_text:
+            reentry = detail_text
+        elif 'rebuys' in label_text:
+            rebuys = detail_text
+        elif 'rebuy cost'in label_text:
+            rebuy_cost = detail_text.replace('$', '').replace(',', '').strip()
+        elif 'rebuy chip' in label_text:
+            rebuy_chips = detail_text.replace(',', '').strip()
+        elif 'addons' in label_text:
+            addons= detail_text
+        elif 'addon cost' in label_text:
+            addon_cost = detail_text.replace('$', '').replace(',', '').strip()
+        elif 'addon chip' in label_text:
+            addon_chips = detail_text.replace(',', '').strip()
+        elif 'bounties' in label_text:
+            bounties = detail_text
+
+    size_details_labels = html.find(
+        'div', {'class': 'size-details'}
+    ).findAll('dt')
+    size_details = html.find('div', {'class': 'size-details'}).findAll('dd')
+    guarantee = None
+    added_money = None
+    for size_label, size_detail in zip(
+        size_details_labels, size_details
+    ):
+        label_text = size_label.text.lower()
+        detail_text = size_detail.text.strip()
+        if 'guarantee' in label_text:
+            if 'none' in detail_text.lower():
+                guarantee = 0
+            else:
+                guarantee = detail_text.replace('$', '').replace(',', '').strip()
+        elif 'added money' in label_text:
+            added_money = detail_text.replace('$', '').replace(',', '').strip()
+
+    structure_details_labels = html.find(
+        'div', {'class': 'structure-details'}
+    ).findAll('dt')
+    structure_details = html.find('div', {'class': 'structure-details'}).findAll('dd')
+    level_time_mins = None
+    break_length_mins = None
+    break_frequency = None
+    for structure_label, structure_detail in zip(
+        structure_details_labels, structure_details
+    ):
+        label_text = structure_label.text.lower()
+        detail_text = structure_detail.text.strip()
+        if 'level time' in label_text:
+            level_time_mins = detail_text.replace('minutes', '').replace(
+                'min', ''
+            ).strip()
+        elif 'break length' in label_text:
+            break_length_mins = detail_text.replace('minutes', '').replace(
+                'min', ''
+            ).strip()
+        elif 'break freq' in label_text:
+            break_frequency = detail_text
+
+
+    df_data = (
+        name, start_datetime, reg_open_datetime, reg_close_datetime,
+        reg_comments, tournament_game_name_raw, total_buy_in, entry_fee,
+        deductions, starting_chips, starting_blinds, starting_small_blind,
+        starting_big_blind, ante_type, staff_bonus, staff_bonus_chips,
+        reentry, rebuys, rebuy_cost, rebuy_chips, addons, addon_cost,
+        addon_chips, bounties, guarantee, added_money, level_time_mins,
+        break_length_mins, break_frequency
+    )
+    return DataFrame.from_records(
+        [df_data], columns=[
+            'name', 'start_datetime', 'reg_open_datetime', 'reg_close_datetime',
+            'reg_comments', 'tournament_game_name_raw', 'total_buy_in',
+            'entry_fee', 'deductions', 'starting_chips', 'starting_blinds',
+            'starting_small_blind', 'starting_big_blind', 'ante_type',
+            'staff_bonus', 'staff_bonus_chips', 'reentry', 'rebuys',
+            'rebuy_cost', 'rebuy_chips', 'addons', 'addon_cost', 'addon_chips',
+            'bounties', 'guarantee', 'added_money', 'level_time_mins',
+            'break_length_mins', 'break_frequency'
+        ]
+    )
+
+def parse_structure_df(html):
+    tables = html.findAll('table')
+    structure_table_idx = None
+    for idx, table in enumerate(tables):
+        if 'small blind' in [h.text.lower() for h in table.select('th')]:
+            structure_table_idx = idx + 1
+            break
+
+    if not structure_table_idx:
+        log.info('Could not parse tournament structure df')
+        return DataFrame()
+
+    structure_table_html = tables[structure_table_idx]
+    df_data = []
+    for row_idx, row in enumerate(structure_table_html.findAll('tr'), start=1):
+        row_data = []
+        row_data.append(row_idx)
+        for cell in row.findAll('td'):
+            row_data.append(cell.text.strip())
+        df_data.append(tuple(row_data))
+
+    return DataFrame.from_records(
+        df_data, columns=[
+            'level_index', 'level_name', 'level_length_mins',
+            'level_small_blind', 'level_big_blind', 'level_ante'
+        ]
+    )
+
+def parse_payout_df(html):
+    tables = html.findAll('table')
+    payout_table_idx = None
+    for idx, table in enumerate(tables):
+        if 'payout' in [h.text.lower() for h in table.select('th')]:
+            payout_table_idx = idx + 1
+            break
+
+    if not payout_table_idx:
+        log.info('Could not parse tournament payout df')
+        return DataFrame()
+
+    payout_table_html = tables[payout_table_idx]
+    df_data = []
+    for row_idx, row in enumerate(payout_table_html.findAll('tr'), start=1):
+        row_data = []
+        row_data.append(row_idx)
+        for cell in row.findAll('td'):
+            row_data.append(cell.text.strip())
+        df_data.append(tuple(row_data))
+
+    return DataFrame.from_records(
+        df_data, columns=['payout_index', 'place', 'payout']
+    )
+
+def get_main_tournament_html(upcoming_tournament_html):
+    main_tournament_url_ext = upcoming_tournament_html.find('a').get('href')
+    raw_main_tournament_html = ot.simple_get(
+        _BASE_URL + main_tournament_url_ext
+    )
+    return BeautifulSoup(raw_main_tournament_html, 'html.parser')
+
+
+def tournament_xform(df):
+    df.drop_duplicates(subset='tournament_id', inplace=True)
+
+    df = ot.add_job_info(df, __file__)
+
+    df['tournament_game_name'] = df['tournament_game_name_raw'].apply(
+        ot.standardize_game_name
+    )
+
+    df = ot.make_id(
+        df, df_cols=['tournament_game_name'], id_type='tournament_game'
+    )
+    game_df = df[[
+        'tournament_game_id', 'tournament_game_name_raw',
+        'tournament_game_name', 'job_source', 'job_timestamp_system',
+        'job_timestamp_utc'
+    ]].copy()
+    game_df.drop_duplicates(subset='tournament_game_id', inplace=True)
+
+    df.drop(
+        ['tournament_game_name_raw', 'tournament_game_name'], axis=1,
+        inplace=True
+    )
+
+    return df, game_df
+
+def tournament_structure_xform(df):
+    df = ot.add_job_info(df, __file__)
+
+    df = ot.make_id(
+        df,
+        df_cols=['tournament_structure_id', 'level_index'],
+        id_type='tournament_structure_level'
+    )
+
+    df.drop_duplicates(subset='tournament_structure_level_id', inplace=True)
+
+    return df
+
+def tournament_payout_xform(df):
+    df = ot.add_job_info(df, __file__)
+
+    df = ot.make_id(
+        df, df_cols=['tournament_id', 'payout_index'],
+        id_type='tournament_payout_place'
+    )
+
+    df.drop_duplicates(subset='tournament_payout_place_id', inplace=True)
+
+    df['payout'] = df['payout'].str.replace('$', '').str.replace(
+        ',', ''
+    ).str.strip()
+
+    return df
+
 def room_data_xform(room_info_df):
     room_info_df = ot.make_id(
         room_info_df, df_cols=['room_name'], id_type='room'
@@ -389,6 +762,11 @@ def create_tables(db_name):
     create_game_table(db_name)
     create_live_game_table(db_name)
     create_live_waitlist_table(db_name)
+    create_tournament_game_table(db_name)
+    create_tournament_table(db_name)
+    create_tournament_structure_table(db_name)
+    create_tournament_payout_table(db_name)
+
 
 def create_room_table(db_name):
     with ot.SQLiteHandler(db_name) as sqlh:
@@ -479,7 +857,10 @@ def create_live_game_table(db_name):
 def create_live_waitlist_table(db_name):
     with ot.SQLiteHandler(db_name) as sqlh:
         if not sqlh.table_exists('live_waitlists'):
-            log.info("live_waitlist table doesn't exist, creating rooms table")
+            log.info(
+                "live_waitlist table doesn't exist, creating live_waitlist "
+                "table"
+            )
             sqlh.create_table(
                 table='live_waitlists',
                 col_type_maps={
@@ -499,10 +880,146 @@ def create_live_waitlist_table(db_name):
             log.info('live_waitlists table already exists, skipping table '
                      'creation')
 
+def create_tournament_game_table(db_name):
+    with ot.SQLiteHandler(db_name) as sqlh:
+        if not sqlh.table_exists('tournament_games'):
+            log.info(
+                "tournament_games table doesn't exist, creating "
+                "tournament_games table"
+            )
+            sqlh.create_table(
+                table='tournament_games',
+                col_type_maps={
+                    'tournament_game_id': 'text',
+                    'tournament_game_name': 'text',
+                    'tournament_game_name_raw': 'text',
+                    'job_source': 'text',
+                    'job_timestamp_system': 'text',
+                    'job_timestamp_utc': 'text',
+                }
+            )
+        else:
+            log.info(
+                'tournament_games table already exists, skipping table creation'
+            )
+
+def create_tournament_table(db_name):
+    with ot.SQLiteHandler(db_name) as sqlh:
+        if not sqlh.table_exists('tournaments'):
+            log.info(
+                "tournaments table doesn't exist, creating tournaments table"
+            )
+            sqlh.create_table(
+                table='tournaments',
+                col_type_maps={
+                    'room_id': 'text',
+                    'tournament_game_id': 'text',
+                    'tournament_id': 'text',
+                    'tournament_structure_id': 'text',
+
+                    'name': 'text',
+                    'start_datetime': 'text',
+                    'reg_open_datetime': 'text',
+                    'reg_close_datetime': 'text',
+                    'reg_comments': 'text',
+                    'total_buy_in': 'integer',
+                    'entry_fee': 'integer',
+                    'deductions': 'integer',
+                    'starting_chips': 'integer',
+                    'starting_blinds': 'text',
+                    'starting_small_blind': 'integer',
+                    'starting_big_blind': 'integer',
+                    'ante_type': 'text',
+                    'staff_bonus': 'integer',
+                    'staff_bonus_chips': 'integer',
+                    'reentry': 'text',
+                    'rebuys': 'text',
+                    'rebuy_cost': 'text',
+                    'rebuy_chips': 'text',
+                    'addons': 'text',
+                    'addon_cost': 'integer',
+                    'addon_chips': 'integer',
+                    'bounties': 'text',
+                    'guarantee': 'integer',
+                    'added_money': 'integer',
+                    'level_time_mins': 'integer',
+                    'break_length_mins': 'integer',
+                    'break_frequency': 'text',
+
+                    'job_source': 'text',
+                    'job_timestamp_system': 'text',
+                    'job_timestamp_utc': 'text',
+                }
+            )
+        else:
+            log.info(
+                'tournaments table already exists, skipping table creation'
+            )
+
+def create_tournament_structure_table(db_name):
+    with ot.SQLiteHandler(db_name) as sqlh:
+        if not sqlh.table_exists('tournament_structures'):
+            log.info(
+                "tournament_structures table doesn't exist, creating "
+                "tournament_structures table"
+            )
+            sqlh.create_table(
+                table='tournament_structures',
+                col_type_maps={
+                    'tournament_structure_id': 'text',
+                    'tournament_structure_level_id': 'text',
+
+                    'level_index': 'integer',
+                    'level_name': 'text',
+                    'level_length_mins': 'integer',
+                    'level_small_blind': 'integer',
+                    'level_big_blind': 'integer',
+                    'level_ante': 'integer',
+
+                    'job_source': 'text',
+                    'job_timestamp_system': 'text',
+                    'job_timestamp_utc': 'text',
+                }
+            )
+        else:
+            log.info(
+                'tournament_structures table already exists, skipping table '
+                'creation'
+            )
+
+def create_tournament_payout_table(db_name):
+    with ot.SQLiteHandler(db_name) as sqlh:
+        if not sqlh.table_exists('tournament_payouts'):
+            log.info(
+                "tournament_payouts table doesn't exist, creating "
+                "tournament_payouts table"
+            )
+            sqlh.create_table(
+                table='tournament_payouts',
+                col_type_maps={
+                    'tournament_id': 'text',
+                    # 'tournament_payout_id': 'text',
+                    'tournament_payout_place_id': 'text',
+
+                    'payout_index': 'integer',
+                    'place': 'text',
+                    'payout': 'integer',
+
+                    'job_source': 'text',
+                    'job_timestamp_system': 'text',
+                    'job_timestamp_utc': 'text',
+                }
+            )
+        else:
+            log.info(
+                'tournament_payouts table already exists, skipping table '
+                'creation'
+            )
+
 if __name__ == '__main__':
     set_option('display.max_columns', None)
-    games_df, waitlist_df = get_live_cash_df(
-        'https://www.pokeratlas.com/poker-room/prime-social-houston/cash-games'
-    )
-    print(games_df)
-    print(waitlist_df)
+    url = 'https://www.pokeratlas.com/poker-room/prime-social-houston' \
+          '/tournaments'
+    #url = 'https://www.pokeratlas.com/poker-room/kickapoo-lucky-eagle-eagle
+    # -pass/tournaments'
+    get_tournament_dfs(url, '123')

@@ -4,7 +4,8 @@ import random
 import optparse
 from jobs.poker_atlas.live_info_lib import (
     get_room_info_df, room_data_xform, _BASE_URL, get_live_cash_df,
-    live_cash_game_xform, create_tables
+    live_cash_game_xform, create_tables, get_tournament_dfs, tournament_xform,
+    tournament_structure_xform, tournament_payout_xform
 )
 import pandas as pd
 import datetime
@@ -34,14 +35,40 @@ def run_job():
 
     all_live_cash_df = pd.DataFrame()
     all_live_waitlist_df = pd.DataFrame()
+    all_tournament_df = pd.DataFrame()
+    all_tournament_structure_df = pd.DataFrame()
+    all_tournament_payout_df = pd.DataFrame()
     for idx, row in room_info_df.iterrows():
-        log.info('Finding live cash games for {}'.format(row['room_name']))
+        log.info(
+            'Finding cash game and tournament data for {}'.format(
+                row['room_name']
+            )
+        )
         time_to_wait = random.random()*5 + 3
         log.info(
             'Waiting {} seconds before room call'.format(int(time_to_wait))
         )
         time.sleep(time_to_wait)
+
         room_url_ext = row['room_url_ext']
+
+        tournament_url = _BASE_URL + room_url_ext + '/tournaments'
+        tournament_df, tournament_structure_df, tournament_payout_df = \
+            get_tournament_dfs(tournament_url, row['room_id'])
+        if not tournament_df.empty:
+            all_tournament_df = pd.concat(
+                [all_tournament_df, tournament_df], ignore_index=True
+            )
+            all_tournament_structure_df = pd.concat(
+                [all_tournament_structure_df, tournament_structure_df],
+                ignore_index=True, sort=True
+            )
+            all_tournament_payout_df = pd.concat(
+                [all_tournament_payout_df, tournament_payout_df],
+                ignore_index=True, sort=True
+            )
+
+
         cash_game_url = _BASE_URL + room_url_ext + '/cash-games'
         live_cash_df, live_waitlist_df = get_live_cash_df(cash_game_url)
         if not live_cash_df.empty:
@@ -59,6 +86,12 @@ def run_job():
         all_live_cash_df, all_live_waitlist_df
     )
 
+    all_tournament_df, tournament_game_df = tournament_xform(all_tournament_df)
+    all_tournament_structure_df = tournament_structure_xform(
+        all_tournament_structure_df
+    )
+    all_tournament_payout_df = tournament_payout_xform(all_tournament_payout_df)
+
     with ot.SQLiteHandler(_DB_NAME) as s:
         s.upsert_df(df=game_df, table='games', upsert_col='game_id')
         s.upsert_df(
@@ -67,6 +100,21 @@ def run_job():
         s.upsert_df(
             df=all_live_waitlist_df, table='live_waitlists',
             upsert_col='waitlist_spot_id'
+        )
+        s.upsert_df(
+            tournament_game_df, table='tournament_games',
+            upsert_col='tournament_game_id'
+        )
+        s.upsert_df(
+            all_tournament_df, table='tournaments', upsert_col='tournament_id'
+        )
+        s.upsert_df(
+            all_tournament_structure_df, table='tournament_structures',
+            upsert_col='tournament_structure_level_id',
+        )
+        s.upsert_df(
+            all_tournament_payout_df, table='tournament_payouts',
+            upsert_col='tournament_payout_place_id',
         )
 
 def process_command_line():

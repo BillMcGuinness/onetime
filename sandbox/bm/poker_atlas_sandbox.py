@@ -75,6 +75,10 @@ def run_job():
                 ) wi
                     ON t.room = wi.room
                         AND t.updated = wi.updated
+            WHERE t.updated >= (
+                SELECT MIN(job_timestamp_system)
+                FROM live_waitlists
+            )
             """
         )
         room_game_data = s.sql_to_df(
@@ -118,5 +122,5 @@ def run_job_new():
 
 if __name__ == '__main__':
     pd.set_option('display.max_columns', None)
-    run_job()
-    # run_job_new()
+    # run_job()
+    run_job_new()
