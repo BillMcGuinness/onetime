@@ -390,27 +390,27 @@ def get_tournament_dfs(url, room_id):
                 [all_payout_df, this_payout_df], ignore_index=True
             )
 
-    upcoming_tournaments_html = tournament_landing_html.find(
-        'section', {'class': 'upcoming-tournaments'}
-    )
-
-    if upcoming_tournaments_html:
-        for upcoming_tournament_html in upcoming_tournaments_html.select('li'):
-            main_tournament_html = get_main_tournament_html(
-                upcoming_tournament_html
-            )
-            this_tournament_df, this_structure_df, this_payout_df = \
-                get_this_tournament_dfs(main_tournament_html, room_id)
-
-            all_tournament_df = concat(
-                [all_tournament_df, this_tournament_df], ignore_index=True
-            )
-            all_structure_df = concat(
-                [all_structure_df, this_structure_df], ignore_index=True
-            )
-            all_payout_df = concat(
-                [all_payout_df, this_payout_df], ignore_index=True
-            )
+    # upcoming_tournaments_html = tournament_landing_html.find(
+    #     'section', {'class': 'upcoming-tournaments'}
+    # )
+    #
+    # if upcoming_tournaments_html:
+    #     for upcoming_tournament_html in upcoming_tournaments_html.select('li'):
+    #         main_tournament_html = get_main_tournament_html(
+    #             upcoming_tournament_html
+    #         )
+    #         this_tournament_df, this_structure_df, this_payout_df = \
+    #             get_this_tournament_dfs(main_tournament_html, room_id)
+    #
+    #         all_tournament_df = concat(
+    #             [all_tournament_df, this_tournament_df], ignore_index=True
+    #         )
+    #         all_structure_df = concat(
+    #             [all_structure_df, this_structure_df], ignore_index=True
+    #         )
+    #         all_payout_df = concat(
+    #             [all_payout_df, this_payout_df], ignore_index=True
+    #         )
 
     return all_tournament_df, all_structure_df, all_payout_df
 
